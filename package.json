@@ -1,0 +1,13 @@
+{
+  "name": "migno-cadeado-api",
+  "version": "1.0.0",
+  "description": "API do Cadeado para os Apps MigNo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.11.5"
+  }
+}
