@@ -1,11 +1,11 @@
 const express = require('express');
 const { Pool } = require('pg');
-const cors = require('cors');
+const cors = require('cors'); // Correção 1: Importação do CORS
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors()); // Correção 1: Liberação do CORS para o App falar com o servidor
 app.use(express.json());
 
 const pool = new Pool({
@@ -24,7 +24,6 @@ app.get('/verificar', async (req, res) => {
 
     try {
         const result = await pool.query('SELECT status FROM usuarios WHERE uuid_aparelho = $1', [uuidCliente]);
-        // O app entende "autorizado" como sinal verde
         if (result.rows.length > 0 && result.rows[0].status === 'autorizado') {
             return res.json({ status: "autorizado" }); 
         } else {
@@ -46,17 +45,17 @@ app.get('/registrar', async (req, res) => {
     }
 });
 
-// 3. ROTA NOVA: Ativação via Chave (O que estava faltando!)
+// 3. ROTA DE ATIVAÇÃO (Revisada e Corrigida)
 app.get('/ativar', async (req, res) => {
     const { uuid, chave } = req.query;
     try {
-        // Verifica se a chave existe e está 'ativa'
-        const valid = await pool.query("SELECT * FROM chaves WHERE chave_valor = $1 AND status = 'ativa'", [chave]);
+        // Correção 2: Mudança de 'chave_valor' para 'codigo' para bater com o DBeaver
+        const valid = await pool.query("SELECT * FROM chaves WHERE codigo = $1 AND status = 'ativa'", [chave]);
         
         if (valid.rows.length > 0) {
-            // Se achou a chave, autoriza o usuário e marca a chave como 'usada'
             await pool.query("UPDATE usuarios SET status = 'autorizado' WHERE uuid_aparelho = $1", [uuid]);
-            await pool.query("UPDATE chaves SET status = 'usada' WHERE chave_valor = $1", [chave]);
+            // Correção 2: Mudança de 'chave_valor' para 'codigo' no UPDATE
+            await pool.query("UPDATE chaves SET status = 'usada' WHERE codigo = $1", [chave]);
             res.json({ status: "sucesso" });
         } else {
             res.json({ status: "erro" });
