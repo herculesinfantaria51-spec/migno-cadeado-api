@@ -21,14 +21,14 @@ const pool = new Pool({
   max: 5
 });
 
-
 // =========================
 // VERIFICAR
 // =========================
 app.get('/verificar', async (req, res) => {
-  const { uuid } = req.query;
+  // Ajustado para uuid_aparelho conforme o DBeaver
+  const { uuid_aparelho } = req.query;
 
-  if (!uuid) {
+  if (!uuid_aparelho) {
     return res.status(400).json({
       status: "erro",
       mensagem: "UUID ausente"
@@ -36,14 +36,13 @@ app.get('/verificar', async (req, res) => {
   }
 
   try {
-
     const result = await pool.query(
       `
       SELECT status
       FROM usuarios
       WHERE uuid_aparelho = $1
       `,
-      [uuid]
+      [uuid_aparelho]
     );
 
     if (
@@ -61,48 +60,44 @@ app.get('/verificar', async (req, res) => {
 
   } catch (err) {
     console.error("Erro verificar:", err);
-
     return res.status(500).json({
       status: "erro"
     });
   }
 });
 
-
 // =========================
 // REGISTRAR
 // =========================
 app.get('/registrar', async (req, res) => {
-  const { uuid } = req.query;
+  // Ajustado para uuid_aparelho conforme o DBeaver
+  const { uuid_aparelho } = req.query;
 
-  if (!uuid) {
+  if (!uuid_aparelho) {
     return res.status(400).json({
       status: "erro"
     });
   }
 
   try {
-
     const existe = await pool.query(
       `
       SELECT *
       FROM usuarios
       WHERE uuid_aparelho = $1
       `,
-      [uuid]
+      [uuid_aparelho]
     );
 
     if (existe.rows.length === 0) {
-
       await pool.query(
         `
         INSERT INTO usuarios
         (uuid_aparelho, status)
         VALUES ($1, 'pendente')
         `,
-        [uuid]
+        [uuid_aparelho]
       );
-
     }
 
     res.json({
@@ -111,32 +106,28 @@ app.get('/registrar', async (req, res) => {
     });
 
   } catch (err) {
-
     console.error("Erro registrar:", err);
-
     res.status(500).json({
       status: "erro"
     });
-
   }
 });
-
 
 // =========================
 // ATIVAR
 // =========================
 app.get('/ativar', async (req, res) => {
+  // Ajustado para uuid_aparelho e codigo conforme o DBeaver
+  const { uuid_aparelho, codigo } = req.query;
 
-  const { uuid, chave } = req.query;
-
-  if (!uuid || !chave) {
+  if (!uuid_aparelho || !codigo) {
     return res.status(400).json({
       status: "erro"
     });
   }
 
   try {
-
+    // Busca na tabela chaves pela coluna 'codigo'
     const chaveValida = await pool.query(
       `
       SELECT *
@@ -144,7 +135,7 @@ app.get('/ativar', async (req, res) => {
       WHERE codigo = $1
       AND status = 'ativa'
       `,
-      [chave]
+      [codigo]
     );
 
     if (chaveValida.rows.length === 0) {
@@ -153,22 +144,24 @@ app.get('/ativar', async (req, res) => {
       });
     }
 
+    // Atualiza status do usuário para autorizado
     await pool.query(
       `
       UPDATE usuarios
       SET status='autorizado'
       WHERE uuid_aparelho=$1
       `,
-      [uuid]
+      [uuid_aparelho]
     );
 
+    // Marca a chave como usada
     await pool.query(
       `
       UPDATE chaves
       SET status='usada'
       WHERE codigo=$1
       `,
-      [chave]
+      [codigo]
     );
 
     res.json({
@@ -176,20 +169,13 @@ app.get('/ativar', async (req, res) => {
     });
 
   } catch (err) {
-
     console.error("Erro ativar:", err);
-
     res.status(500).json({
       status: "erro"
     });
-
   }
-
 });
 
-
 app.listen(port, () => {
-  console.log(
-    `Servidor de Venda Direta rodando na porta ${port}`
-  );
+  console.log(`Servidor rodando na porta ${port}`);
 });
