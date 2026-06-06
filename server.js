@@ -1,12 +1,14 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
+// 1. Inicializa a Stripe com a chave secreta vinda das variáveis de ambiente
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // Essencial para o Webhook da Stripe ler o corpo da requisição
 
 const pool = new Pool({
   user: process.env.DB_USER,
@@ -25,7 +27,6 @@ const pool = new Pool({
 // VERIFICAR
 // =========================
 app.get('/verificar', async (req, res) => {
-  // Ajustado para uuid_aparelho conforme o DBeaver
   const { uuid_aparelho } = req.query;
 
   if (!uuid_aparelho) {
@@ -70,7 +71,6 @@ app.get('/verificar', async (req, res) => {
 // REGISTRAR
 // =========================
 app.get('/registrar', async (req, res) => {
-  // Ajustado para uuid_aparelho conforme o DBeaver
   const { uuid_aparelho } = req.query;
 
   if (!uuid_aparelho) {
@@ -117,7 +117,6 @@ app.get('/registrar', async (req, res) => {
 // ATIVAR
 // =========================
 app.get('/ativar', async (req, res) => {
-  // Ajustado para uuid_aparelho e codigo conforme o DBeaver
   const { uuid_aparelho, codigo } = req.query;
 
   if (!uuid_aparelho || !codigo) {
@@ -127,7 +126,6 @@ app.get('/ativar', async (req, res) => {
   }
 
   try {
-    // Busca na tabela chaves pela coluna 'codigo'
     const chaveValida = await pool.query(
       `
       SELECT *
@@ -144,7 +142,6 @@ app.get('/ativar', async (req, res) => {
       });
     }
 
-    // Atualiza status do usuário para autorizado
     await pool.query(
       `
       UPDATE usuarios
@@ -154,7 +151,6 @@ app.get('/ativar', async (req, res) => {
       [uuid_aparelho]
     );
 
-    // Marca a chave como usada
     await pool.query(
       `
       UPDATE chaves
@@ -174,6 +170,48 @@ app.get('/ativar', async (req, res) => {
       status: "erro"
     });
   }
+});
+
+// ==========================================
+// WEBHOOK DA STRIPE (GERAÇÃO DA CHAVE)
+// ==========================================
+app.post('/webhook-stripe', async (req, res) => {
+  const evento = req.body;
+
+  // Quando o checkout de pagamento for concluído com sucesso
+  if (evento.type === 'checkout.session.completed') {
+    
+    let codigoChave = "";
+    let inseridoComSucesso = false;
+    let tentativas = 0;
+
+    // Tenta gerar um código único até 3 vezes para evitar qualquer colisão no banco
+    while (!inseridoComSucesso && tentativas < 3) {
+      codigoChave = "MIGNO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+      tentativas++;
+
+      try {
+        await pool.query(
+          `
+          INSERT INTO chaves (codigo, status)
+          VALUES ($1, 'ativa')
+          `,
+          [codigoChave]
+        );
+        inseridoComSucesso = true;
+        console.log(`Chave automática criada com sucesso no PostgreSQL: ${codigoChave}`);
+      } catch (err) {
+        console.error(`Tentativa ${tentativas} falhou ao inserir chave (possível código duplicado). Gerando outro...`);
+        if (tentativas >= 3) {
+          console.error("Erro crítico: Falha ao gerar chave única após 3 tentativas.", err);
+          return res.status(500).send("Erro ao gerar chave única");
+        }
+      }
+    }
+  }
+
+  // Responde sempre 200 OK para a Stripe saber que a rota está ativa e recebeu o evento
+  res.json({ received: true });
 });
 
 app.listen(port, () => {
