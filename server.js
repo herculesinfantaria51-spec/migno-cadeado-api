@@ -175,17 +175,28 @@ app.get('/ativar', async (req, res) => {
 // ==========================================
 // WEBHOOK DA STRIPE (GERAÇÃO DA CHAVE)
 // ==========================================
-app.post('/webhook-stripe', async (req, res) => {
-  const evento = req.body;
+// ==========================================
+// WEBHOOK DA STRIPE (VERSÃO PROTEGIDA COM ASSINATURA)
+// ==========================================
+app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    // Valida se a requisição realmente veio da Stripe usando o seu Segredo do Webhook (whsec)
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error(` Erro de assinatura do Webhook: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
 
   // Quando o checkout de pagamento for concluído com sucesso
-  if (evento.type === 'checkout.session.completed') {
-    
+  if (event.type === 'checkout.session.completed') {
     let codigoChave = "";
     let inseridoComSucesso = false;
     let tentativas = 0;
 
-    // Tenta gerar um código único até 3 vezes para evitar qualquer colisão no banco
+    // Tenta gerar um código único até 3 vezes para evitar colisão no PostgreSQL
     while (!inseridoComSucesso && tentativas < 3) {
       codigoChave = "MIGNO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
       tentativas++;
@@ -199,9 +210,9 @@ app.post('/webhook-stripe', async (req, res) => {
           [codigoChave]
         );
         inseridoComSucesso = true;
-        console.log(`Chave automática criada com sucesso no PostgreSQL: ${codigoChave}`);
+        console.log(`🚀 Chave automática criada com sucesso no PostgreSQL: ${codigoChave}`);
       } catch (err) {
-        console.error(`Tentativa ${tentativas} falhou ao inserir chave (possível código duplicado). Gerando outro...`);
+        console.error(`Tentativa ${tentativas} falhou ao inserir chave. Gerando outro...`);
         if (tentativas >= 3) {
           console.error("Erro crítico: Falha ao gerar chave única após 3 tentativas.", err);
           return res.status(500).send("Erro ao gerar chave única");
@@ -210,10 +221,9 @@ app.post('/webhook-stripe', async (req, res) => {
     }
   }
 
-  // Responde sempre 200 OK para a Stripe saber que a rota está ativa e recebeu o evento
+  // Responde 200 OK para a Stripe saber que o evento foi processado com sucesso
   res.json({ received: true });
 });
-
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
 });
