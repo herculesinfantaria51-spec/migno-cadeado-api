@@ -92,14 +92,15 @@ app.get('/registrar', async (req, res) => {
 
     if (existe.rows.length === 0) {
       // Grava o ID do aparelho, o status pendente E amarra a categoria do app comprado!
-      await pool.query(
-        `
-        INSERT INTO usuarios
-        (uuid_aparelho, status, categoria)
-        VALUES ($1, 'pendente', $2)
-        `,
-        [uuid_aparelho, categoria]
-      );
+     // O JEITO CORRETO: Alinha as 3 colunas com os 3 parâmetros ($1, $2, $3)
+await pool.query(
+  `
+  INSERT INTO usuarios
+  (uuid_aparelho, status, categoria)
+  VALUES ($1, $2, $3)
+  `,
+  [uuid_aparelho, 'pendente', categoria]
+);
     }
 
     res.json({
