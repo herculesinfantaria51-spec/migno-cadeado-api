@@ -31,7 +31,7 @@ app.get('/verificar', async (req, res) => {
 
   if (!uuid_aparelho || !categoria) {
     return res.status(400).json({
-      status: "erro",
+      status: "erro ruim",
       mensagem: "UUID ou Categoria ausente"
     });
   }
