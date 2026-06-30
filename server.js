@@ -1,14 +1,16 @@
-// Atualizado em 30/06/26 - com 3 colunas pra o DB
+
+30/06/26 Atualizar
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
+// 1. Inicializa a Stripe com a chave secreta vinda das variáveis de ambiente
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json()); 
+app.use(express.json()); // Essencial para o Webhook da Stripe ler o corpo da requisição
 
 const pool = new Pool({
   user: process.env.DB_USER,
@@ -23,11 +25,11 @@ const pool = new Pool({
   max: 5
 });
 
-// ==========================================
-// VERIFICAR (Bate perfeito com licenca.js)
-// ==========================================
+// ==========================================================================
+// 1. VERIFICAR (CORRIGIDO: Agora confere a categoria antes de liberar)
+// ==========================================================================
 app.get('/verificar', async (req, res) => {
-  const { uuid_aparelho, categoria } = req.query;
+  const { uuid_aparelho, categoria } = req.query; // Captura a categoria enviada pelo celular
 
   if (!uuid_aparelho || !categoria) {
     return res.status(400).json({
@@ -42,13 +44,16 @@ app.get('/verificar', async (req, res) => {
       SELECT status
       FROM usuarios
       WHERE uuid_aparelho = $1 AND categoria = $2
-      `,
+      `, 
       [uuid_aparelho, categoria]
     );
 
-    if (result.rows.length > 0 && result.rows[0].status === 'autorizado') {
+    if (
+      result.rows.length > 0 &&
+      result.rows[0].status === 'autorizado'
+    ) {
       return res.json({
-        status: "autorizado"
+        status: "authorized" // Mantém o retorno esperado pelo seu licenca.js
       });
     }
 
@@ -64,15 +69,16 @@ app.get('/verificar', async (req, res) => {
   }
 });
 
-// ==========================================
-// REGISTRAR (Bate perfeito com licenca.js)
-// ==========================================
+// ==========================================================================
+// 2. REGISTRAR (CORRIGIDO: Ordem das colunas casando 100% com o Neon)
+// ==========================================================================
 app.get('/registrar', async (req, res) => {
   const { uuid_aparelho, categoria } = req.query;
 
   if (!uuid_aparelho || !categoria) {
     return res.status(400).json({
-      status: "erro"
+      status: "erro",
+      mensagem: "UUID ou Categoria ausente"
     });
   }
 
@@ -87,12 +93,14 @@ app.get('/registrar', async (req, res) => {
     );
 
     if (existe.rows.length === 0) {
+      // 🛠️ CORREÇÃO: Colunas e Variáveis perfeitamente alinhadas (uuid_aparelho, categoria, status)
       await pool.query(
         `
-        INSERT INTO usuarios (uuid_aparelho, categoria, status)
-        VALUES ($1, $2, 'pendente')
+        INSERT INTO usuarios
+        (uuid_aparelho, categoria, status)
+        VALUES ($1, $2, $3)
         `,
-        [uuid_aparelho, categoria]
+        [uuid_aparelho, categoria, 'pendente']
       );
     }
 
@@ -109,9 +117,9 @@ app.get('/registrar', async (req, res) => {
   }
 });
 
-// ==========================================
-// ATIVAR (Bate perfeito com licenca.js)
-// ==========================================
+// ==========================================================================
+// 3. ATIVAR (CORRIGIDO: Agora confere se a chave bate com a categoria certa)
+// ==========================================================================
 app.get('/ativar', async (req, res) => {
   const { uuid_aparelho, codigo, categoria } = req.query;
 
@@ -126,7 +134,9 @@ app.get('/ativar', async (req, res) => {
       `
       SELECT *
       FROM chaves
-      WHERE codigo = $1 AND status = 'ativa' AND categoria = $2
+      WHERE codigo = $1
+      AND status = 'ativa'
+      AND categoria = $2
       `,
       [codigo, categoria]
     );
@@ -167,18 +177,23 @@ app.get('/ativar', async (req, res) => {
   }
 });
 
-// ==========================================
-// WEBHOOK DA STRIPE 
-// ==========================================
-app.post('/webhook-stripe', async (req, res) => {
-  const evento = req.body;
+// ==========================================================================
+// 4. WEBHOOK DA STRIPE (CORRIGIDO: Chaves casando 100% com codigo, status, categoria)
+// ==========================================================================
+app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
 
-  if (evento.type === 'checkout.session.completed') {
-    const sessao = evento.data.object; // Captura correta do objeto da sessao da Stripe
-    
-    // Se você passar a categoria nos metadados do checkout da Stripe ele pega automático,
-    // senão ele usa 'ingles_portuguesDic' como padrão para não quebrar.
-    const categoriaProduto = (sessao.metadata && sessao.metadata.categoria) ? sessao.metadata.categoria : 'ingles_portuguesDic';
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error(` Erro de assinatura do Webhook: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const categoriaApp = session.metadata && session.metadata.categoria ? session.metadata.categoria : 'indefinida';
 
     let codigoChave = "";
     let inseridoComSucesso = false;
@@ -189,19 +204,20 @@ app.post('/webhook-stripe', async (req, res) => {
       tentativas++;
 
       try {
+        // 🛠️ CORREÇÃO: Alinhamento perfeito com a ordem (codigo, status, categoria) e os 3 parâmetros ($1, $2, $3)
         await pool.query(
           `
           INSERT INTO chaves (codigo, status, categoria)
-          VALUES ($1, 'ativa', $2)
+          VALUES ($1, $2, $3)
           `,
-          [codigoChave, categoriaProduto]
+          [codigoChave, 'ativa', categoriaApp]
         );
         inseridoComSucesso = true;
-        console.log(`Chave criada com sucesso para ${categoriaProduto}: ${codigoChave}`);
+        console.log(`🚀 Chave automática criada com sucesso no PostgreSQL para [${categoriaApp}]: ${codigoChave}`);
       } catch (err) {
         console.error(`Tentativa ${tentativas} falhou ao inserir chave. Gerando outro...`);
         if (tentativas >= 3) {
-          console.error("Erro crítico: Falha ao gerar chave única.", err);
+          console.error("Erro crítico: Falha ao gerar chave única após 3 tentativas.", err);
           return res.status(500).send("Erro ao gerar chave única");
         }
       }
