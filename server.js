@@ -178,7 +178,7 @@ app.get('/ativar', async (req, res) => {
 });
 
 // ==========================================================================
-// 4. WEBHOOK DA STRIPE (CORRIGIDO: Chaves casando 100% com codigo, status, categoria)
+// 4. WEBHOOK DA STRIPEb(CORRIGIDO: Chaves casando 100% com codigo, status, categoria)
 // ==========================================================================
 app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
