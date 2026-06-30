@@ -1,5 +1,5 @@
 
-30/06/26 Atualizar
+// 30/06/26 Atualizar
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
