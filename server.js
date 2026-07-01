@@ -27,23 +27,7 @@ const pool = new Pool({
 // ==========================================================================
 // ROTA DE DIAGNÓSTICO (Agora no lugar certo, após a criação do pool)
 // ==========================================================================
-// SUBSTITUA APENAS A ROTA DE TESTE POR ESTA AQUI:
-app.get('/estrutura-usuarios', async (req, res) => {
-  let client;
-  try {
-    client = await pool.connect(); // Pega a conexão segura da piscina
-    const result = await client.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'usuarios'
-    `);
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ erro: err.message });
-  } finally {
-    if (client) client.release(); // Devolve a conexão para a piscina
-  }
-});
+// Se necessário um teste profundo.
 // ==========================================================================
 // 1. VERIFICAR
 // ==========================================================================
