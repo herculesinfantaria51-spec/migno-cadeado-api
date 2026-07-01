@@ -230,3 +230,16 @@ app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (re
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
 });
+
+app.get('/estrutura-usuarios', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'usuarios'
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
