@@ -1,16 +1,15 @@
 
-// 30/06/26 Atualizar
+// Atualizado em; 1/07/26
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
-// 1. Inicializa a Stripe com a chave secreta vinda das variáveis de ambiente
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json()); // Essencial para o Webhook da Stripe ler o corpo da requisição
+app.use(express.json()); 
 
 const pool = new Pool({
   user: process.env.DB_USER,
@@ -26,10 +25,26 @@ const pool = new Pool({
 });
 
 // ==========================================================================
-// 1. VERIFICAR (CORRIGIDO: Agora confere a categoria antes de liberar)
+// ROTA DE DIAGNÓSTICO (Agora no lugar certo, após a criação do pool)
+// ==========================================================================
+app.get('/estrutura-usuarios', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'usuarios'
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+// ==========================================================================
+// 1. VERIFICAR
 // ==========================================================================
 app.get('/verificar', async (req, res) => {
-  const { uuid_aparelho, categoria } = req.query; // Captura a categoria enviada pelo celular
+  const { uuid_aparelho, categoria } = req.query;
 
   if (!uuid_aparelho || !categoria) {
     return res.status(400).json({
@@ -53,7 +68,7 @@ app.get('/verificar', async (req, res) => {
       result.rows[0].status === 'autorizado'
     ) {
       return res.json({
-        status: "authorized" // Mantém o retorno esperado pelo seu licenca.js
+        status: "authorized"
       });
     }
 
@@ -70,7 +85,7 @@ app.get('/verificar', async (req, res) => {
 });
 
 // ==========================================================================
-// 2. REGISTRAR (CORRIGIDO: Ordem das colunas casando 100% com o Neon)
+// 2. REGISTRAR
 // ==========================================================================
 app.get('/registrar', async (req, res) => {
   const { uuid_aparelho, categoria } = req.query;
@@ -93,7 +108,6 @@ app.get('/registrar', async (req, res) => {
     );
 
     if (existe.rows.length === 0) {
-      // 🛠️ CORREÇÃO: Colunas e Variáveis perfeitamente alinhadas (uuid_aparelho, categoria, status)
       await pool.query(
         `
         INSERT INTO usuarios
@@ -118,14 +132,14 @@ app.get('/registrar', async (req, res) => {
 });
 
 // ==========================================================================
-// 3. ATIVAR (CORRIGIDO: Agora confere se a chave bate com a categoria certa)
+// 3. ATIVAR
 // ==========================================================================
 app.get('/ativar', async (req, res) => {
   const { uuid_aparelho, codigo, categoria } = req.query;
 
   if (!uuid_aparelho || !codigo || !categoria) {
     return res.status(400).json({
-      status: "erro"
+      status: "erro1"
     });
   }
 
@@ -170,7 +184,7 @@ app.get('/ativar', async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Erro ativar:", err);
+    console.error("Erro activar:", err);
     res.status(500).json({
       status: "erro"
     });
@@ -178,7 +192,7 @@ app.get('/ativar', async (req, res) => {
 });
 
 // ==========================================================================
-// 4. WEBHOOK DA STRIPEb(CORRIGIDO: Chaves casando 100% com codigo, status, categoria)
+// 4. WEBHOOK DA STRIPE
 // ==========================================================================
 app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
@@ -204,7 +218,6 @@ app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (re
       tentativas++;
 
       try {
-        // 🛠️ CORREÇÃO: Alinhamento perfeito com a ordem (codigo, status, categoria) e os 3 parâmetros ($1, $2, $3)
         await pool.query(
           `
           INSERT INTO chaves (codigo, status, categoria)
@@ -229,17 +242,4 @@ app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (re
 
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
-});
-
-app.get('/estrutura-usuarios', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'usuarios'
-    `);
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ erro: err.message });
-  }
 });
