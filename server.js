@@ -36,7 +36,7 @@ app.get('/verificar', async (req, res) => {
 
   if (!uuid_aparelho || !categoria) {
     return res.status(400).json({
-      status: "erro",
+      status: "erro1",
       mensagem: "UUID ou Categoria ausente"
     });
   }
@@ -61,7 +61,7 @@ app.get('/verificar', async (req, res) => {
     }
 
     return res.json({
-      status: "erro"
+      status: "erro2"
     });
 
   } catch (err) {
@@ -80,7 +80,7 @@ app.get('/registrar', async (req, res) => {
 
   if (!uuid_aparelho || !categoria) {
     return res.status(400).json({
-      status: "erro",
+      status: "erro3",
       mensagem: "UUID ou Categoria ausente"
     });
   }
@@ -114,7 +114,7 @@ app.get('/registrar', async (req, res) => {
   } catch (err) {
     console.error("Erro registrar:", err);
     res.status(500).json({
-      status: "erro"
+      status: "erro4"
     });
   }
 });
@@ -127,7 +127,7 @@ app.get('/ativar', async (req, res) => {
 
   if (!uuid_aparelho || !codigo || !categoria) {
     return res.status(400).json({
-      status: "erro1"
+      status: "erro5"
     });
   }
 
@@ -174,7 +174,7 @@ app.get('/ativar', async (req, res) => {
   } catch (err) {
     console.error("Erro activar:", err);
     res.status(500).json({
-      status: "erro"
+      status: "erro6"
     });
   }
 });
