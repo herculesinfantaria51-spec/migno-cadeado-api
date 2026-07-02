@@ -1,5 +1,4 @@
-
-// Atualizado em; 1/07/26
+// Atualizado em: 02/07/2026
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -9,6 +8,57 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
+
+// ==========================================================================
+// 4. WEBHOOK DA STRIPE (Posicionado antes do express.json para receber o raw body)
+// ==========================================================================
+app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error(` Erro de assinatura do Webhook: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const categoriaApp = session.metadata && session.metadata.categoria ? session.metadata.categoria : 'indefinida';
+
+    let codigoChave = "";
+    let inseridoComSucesso = false;
+    let tentativas = 0;
+
+    while (!inseridoComSucesso && tentativas < 3) {
+      codigoChave = "MIGNO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+      tentativas++;
+
+      try {
+        await pool.query(
+          `
+          INSERT INTO chaves (codigo, status, categoria)
+          VALUES ($1, $2, $3)
+          `,
+          [codigoChave, 'ativa', categoriaApp]
+        );
+        inseridoComSucesso = true;
+        console.log(`🚀 Chave automática criada com sucesso no PostgreSQL para [${categoriaApp}]: ${codigoChave}`);
+      } catch (err) {
+        console.error(`Tentativa ${tentativas} falhou ao inserir chave. Gerando outro...`);
+        if (tentativas >= 3) {
+          console.error("Erro crítico: Falha ao gerar chave única após 3 tentativas.", err);
+          return res.status(500).send("Erro ao gerar chave única");
+        }
+      }
+    }
+  }
+
+  res.json({ received: true });
+});
+
+// Ativa o parser JSON para todas as rotas declaradas abaixo dele
 app.use(express.json()); 
 
 const pool = new Pool({
@@ -27,7 +77,19 @@ const pool = new Pool({
 // ==========================================================================
 // ROTA DE DIAGNÓSTICO (Agora no lugar certo, após a criação do pool)
 // ==========================================================================
-// Se necessário um teste profundo.
+app.get('/estrutura-usuarios', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'usuarios'
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 // ==========================================================================
 // 1. VERIFICAR
 // ==========================================================================
@@ -177,55 +239,6 @@ app.get('/ativar', async (req, res) => {
       status: "erro6"
     });
   }
-});
-
-// ==========================================================================
-// 4. WEBHOOK DA STRIPE
-// ==========================================================================
-app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    console.error(` Erro de assinatura do Webhook: ${err.message}`);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    const categoriaApp = session.metadata && session.metadata.categoria ? session.metadata.categoria : 'indefinida';
-
-    let codigoChave = "";
-    let inseridoComSucesso = false;
-    let tentativas = 0;
-
-    while (!inseridoComSucesso && tentativas < 3) {
-      codigoChave = "MIGNO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-      tentativas++;
-
-      try {
-        await pool.query(
-          `
-          INSERT INTO chaves (codigo, status, categoria)
-          VALUES ($1, $2, $3)
-          `,
-          [codigoChave, 'ativa', categoriaApp]
-        );
-        inseridoComSucesso = true;
-        console.log(`🚀 Chave automática criada com sucesso no PostgreSQL para [${categoriaApp}]: ${codigoChave}`);
-      } catch (err) {
-        console.error(`Tentativa ${tentativas} falhou ao inserir chave. Gerando outro...`);
-        if (tentativas >= 3) {
-          console.error("Erro crítico: Falha ao gerar chave única após 3 tentativas.", err);
-          return res.status(500).send("Erro ao gerar chave única");
-        }
-      }
-    }
-  }
-
-  res.json({ received: true });
 });
 
 app.listen(port, () => {
