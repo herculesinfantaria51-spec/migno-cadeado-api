@@ -12,9 +12,6 @@ app.use(cors());
 // ==========================================================================
 // 4. WEBHOOK DA STRIPE (Posicionado antes do express.json para receber o raw body)
 // ==========================================================================
-// ==========================================================================
-// 4. WEBHOOK DA STRIPE (Posicionado antes do express.json para receber o raw body)
-// ==========================================================================
 app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
