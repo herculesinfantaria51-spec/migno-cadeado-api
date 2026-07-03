@@ -1,4 +1,4 @@
-// Atualizado em: 03/07/2026 > Mudança na Webhook
+// Atualizado em: 03/07/2026 - 16:30 > Mudança na Webhook
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -7,6 +7,12 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const port = process.env.PORT || 3000;
 
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 app.use(cors());
 
 // ==========================================================================
@@ -33,7 +39,7 @@ app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (re
     let inseridoComSucesso = false;
     let tentativas = 0;
 
-    while (!inseridoComSucesso && tentatives < 3) {
+    while (!inseridoComSucesso && tentativas < 3) {
       codigoChave = "MIGNO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
       tentativas++;
 
@@ -186,7 +192,7 @@ app.get('/sucesso', async (req, res) => {
           function copiarChave() {
             const texto = document.getElementById('codigoChave').innerText;
             navigator.clipboard.writeText(texto).then(() => {
-              alert('Chave copiada com sucesso! Agora volte para o aplicativo.');
+              alert('Key copied successfully! Now go back to the application.');
             }).catch(err => {
               alert('Erro ao copiar automaticamente. Copie o texto manualmente.');
             });
@@ -202,23 +208,21 @@ app.get('/sucesso', async (req, res) => {
   }
 });
     
-
 // ==========================================================================
-// ROTA DE DIAGNÓSTICO (Agora no lugar certo, após a criação do pool)
+// ROTA DE DIAGNÓSTICO (Simplificada e sem caminhos complexos de tabela)
 // ==========================================================================
 app.get('/estrutura-usuarios', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'usuarios'
-    `);
-    res.json(result.rows);
+    // Consulta direta e simples na tabela exposta na árvore do pgAdmin
+    const result = await pool.query(`SELECT * FROM chaves LIMIT 1`);
+    res.json({
+      status: "Conexão OK",
+      registro_teste: result.rows[0] || "Tabela vazia"
+    });
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
 });
-
 // ==========================================================================
 // 1. VERIFICAR
 // ==========================================================================
@@ -349,8 +353,7 @@ app.get('/ativar', async (req, res) => {
       [uuid_aparelho, categoria]
     );
 
-    await pool.query(
-      `
+    await pool.query(     `
       UPDATE chaves
       SET status='usada'
       WHERE codigo=$1
