@@ -1,4 +1,4 @@
-// Atualizado em: 03/07/2026 - 16:30 > Mudança na Webhook
+// Atualizado em: 03/07/2026 > Mudança na Webhook
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -68,28 +68,20 @@ app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (re
 });
 
 // ==========================================================================
-// ROTA DA PÁGINA DE SUCESSO (Abre no navegador do cliente após a compra)
+// ROTA DE DIAGNÓSTICO (Simplificada e sem caminhos complexos de tabela)
 // ==========================================================================
-app.get('/sucesso', async (req, res) => {
-  // A rota de sucesso lê a categoria que a Stripe enviou na URL
-  const { categoria } = req.query;
-
-  if (!categoria) {
-    return res.status(400).send("Categoria do aplicativo ausente na URL.");
-  }
-
+app.get('/estrutura-usuarios', async (req, res) => {
   try {
-    // A rota de sucesso faz uma busca na sua tabela atual trazendo a última chave 'ativa' criada para aquela categoria
-    const resultado = await pool.query(
-      `
-      SELECT codigo 
-      FROM chaves 
-      WHERE categoria = $1 AND status = 'ativa' 
-      ORDER BY id DESC 
-      LIMIT 1
-      `,
-      [categoria]
-    );
+    // Consulta direta e simples na tabela exposta na árvore do pgAdmin
+    const result = await pool.query(`SELECT * FROM chaves LIMIT 1`);
+    res.json({
+      status: "Conexão OK",
+      registro_teste: result.rows[0] || "Tabela vazia"
+    });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
 
     // Se o webhook ainda estiver processando a gravação, a página aguarda 2 segundos e atualiza sozinha
     if (resultado.rows.length === 0) {
