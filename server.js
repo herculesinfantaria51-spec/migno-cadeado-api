@@ -173,8 +173,9 @@ app.get('/sucesso', async (req, res) => {
       </head>
       <body>
         <div class="container">
-          <h1>🎆 Compra Aprovada! 🎆</h1>
-          <p>Sua licença foi gerada com sucesso. Copie o código abaixo, abra o aplicativo novamente e cole no campo de ativação.</p>
+          <h1>🎆Purchase Approved! 🎆</h1>
+          <p>Your license has been successfully generated. Copy the code below, open the Migno offline dictionary 
+          again, and paste it into the activation field.</p>
           
           <div class="chave-box" id="codigoChave">${chaveGerada}</div>
           
