@@ -239,11 +239,26 @@ app.get('/ativar', async (req, res) => {
       [codigo, categoria]
     );
 
+  try {
+    const chaveValida = await pool.query(
+      `
+      SELECT *
+      FROM chaves
+      WHERE codigo = $1
+      AND status = 'ativa'
+      AND categoria = $2
+      `,
+      [codigo, categoria]
+    );
+
     if (chaveValida.rows.length === 0) {
       return res.json({
         status: "erro7"
       });
     }
+
+    // Abre a transação para evitar quebra de conexão do pool no Neon
+    await pool.query('BEGIN');
 
     await pool.query(
       `
@@ -263,9 +278,20 @@ app.get('/ativar', async (req, res) => {
       [codigo]
     );
 
-    res.json({
+    await pool.query('COMMIT');
+
+    return res.json({
       status: "sucesso"
     });
+
+  } catch (err) {
+    // Se falhar no meio dos updates, desfaz as alterações para não corromper o banco
+    await pool.query('ROLLBACK').catch(() => {});
+    console.error("Erro activar:", err);
+    return res.status(500).json({
+      status: "erro8"
+    });
+  }
 
   } catch (err) {
     console.error("Erro activar:", err);
