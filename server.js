@@ -210,7 +210,7 @@ app.get('/verificar', async (req, res) => {
   } catch (err) {
     console.error("Erro verificar:", err);
     return res.status(500).json({
-      status: "erro"
+      status: "erro3"
     });
   }
 });
@@ -223,7 +223,7 @@ app.get('/registrar', async (req, res) => {
 
   if (!uuid_aparelho || !categoria) {
     return res.status(400).json({
-      status: "erro3",
+      status: "erro4",
       mensagem: "UUID or Category missing"
     });
   }
@@ -257,7 +257,7 @@ app.get('/registrar', async (req, res) => {
   } catch (err) {
     console.error("Erro registrar:", err);
     res.status(500).json({
-      status: "erro4"
+      status: "erro5"
     });
   }
 });
@@ -270,7 +270,7 @@ app.get('/ativar', async (req, res) => {
 
   if (!uuid_aparelho || !codigo || !categoria) {
     return res.status(400).json({
-      status: "erro5"
+      status: "erro6"
     });
   }
 
@@ -288,7 +288,7 @@ app.get('/ativar', async (req, res) => {
 
     if (chaveValida.rows.length === 0) {
       return res.json({
-        status: "erro"
+        status: "erro7"
       });
     }
 
@@ -316,7 +316,7 @@ app.get('/ativar', async (req, res) => {
   } catch (err) {
     console.error("Erro activar:", err);
     res.status(500).json({
-      status: "erro6"
+      status: "erro8"
     });
   }
 });
