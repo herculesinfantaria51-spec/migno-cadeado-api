@@ -207,10 +207,11 @@ app.get('/registrar', async (req, res) => {
       mensagem: "Awaiting authorization"
     });
 
-  } catch (err) {
+ } catch (err) {
     console.error("Erro registrar:", err);
-    res.status(500).json({
-      status: "erro5"
+    return res.status(500).json({
+      status: "erro5",
+      detalhe: err.message
     });
   }
 });
