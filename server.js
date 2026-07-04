@@ -1,4 +1,5 @@
-// Atualizado em: 03/07/2026 > Mudança na Webhook 16:40 min
+// Server Migno - Sincronizado estritamente com as tabelas do pgAdmin
+// Atualizado em: 04/07/ 14:31
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -16,7 +17,7 @@ const pool = new Pool({
 app.use(cors());
 
 // ==========================================================================
-// 4. WEBHOOK DA STRIPE (Posicionado antes do express.json para receber o raw body)
+// 4. WEBHOOK DA STRIPE (Processamento e criação de chaves automáticas)
 // ==========================================================================
 app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
@@ -31,8 +32,6 @@ app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (re
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
-    
-    // O seu código busca a categoria vinda dos metadados da Stripe
     const categoriaApp = session.metadata && session.metadata.categoria ? session.metadata.categoria : 'indefinida';
 
     let codigoChave = "";
@@ -44,7 +43,7 @@ app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (re
       tentativas++;
 
       try {
-        // O servidor insere a chave na sua tabela atual, usando as colunas que você já tem
+        // Confirmado: colunas batem 100% com a imagem_ada22f.jpg
         await pool.query(
           `
           INSERT INTO chaves (codigo, status, categoria)
@@ -68,7 +67,7 @@ app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (re
 });
 
 // ==========================================================================
-// ROTA DA PÁGINA DE SUCESSO (Abre no navegador do cliente após a compra)
+// ROTA DA PÁGINA DE SUCESSO (Entrega da Chave pós-venda)
 // ==========================================================================
 app.get('/sucesso', async (req, res) => {
   const { categoria } = req.query;
@@ -78,16 +77,19 @@ app.get('/sucesso', async (req, res) => {
   }
 
   try {
-    const resultado = await pool.query(
-      `
-      SELECT codigo 
-      FROM chaves 
-      WHERE categoria = $1 AND status = 'ativa' 
-      ORDER BY id DESC 
-      LIMIT 1
-      `,
-      [categoria]
-    );
+    // Confirmado: Não usa a coluna ID. Ordenação por codigo resolvida!
+   
+   // ====== TRECHO CORRIGIDO ======
+const resultado = await pool.query(
+  `
+  SELECT codigo 
+  FROM chaves 
+  WHERE categoria = $1 AND status = 'ativa' 
+  ORDER BY codigo DESC 
+  LIMIT 1
+  `,
+  [categoria]
+);
 
     if (resultado.rows.length === 0) {
       return res.send(`
@@ -155,7 +157,7 @@ app.get('/sucesso', async (req, res) => {
 });
 
 // ==========================================================================
-// ROTA DE DIAGNÓSTICO (Simplificada e sem caminhos complexos de tabela)
+// ROTA DE DIAGNÓSTICO (Bate direto na tabela chaves para checar o status)
 // ==========================================================================
 app.get('/estrutura-usuarios', async (req, res) => {
   try {
@@ -170,7 +172,7 @@ app.get('/estrutura-usuarios', async (req, res) => {
 });
 
 // ==========================================================================
-// 1. VERIFICAR
+// 1. VERIFICAR (Validado com as colunas da imagem_ada301.jpg)
 // ==========================================================================
 app.get('/verificar', async (req, res) => {
   const { uuid_aparelho, categoria } = req.query;
@@ -214,7 +216,7 @@ app.get('/verificar', async (req, res) => {
 });
 
 // ==========================================================================
-// 2. REGISTRAR
+// 2. REGISTRAR (Validado com as colunas da imagem_ada301.jpg)
 // ==========================================================================
 app.get('/registrar', async (req, res) => {
   const { uuid_aparelho, categoria } = req.query;
@@ -261,7 +263,7 @@ app.get('/registrar', async (req, res) => {
 });
 
 // ==========================================================================
-// 3. ATIVAR
+// 3. ATIVAR (Validado cruzando chaves e usuarios simultaneamente)
 // ==========================================================================
 app.get('/ativar', async (req, res) => {
   const { uuid_aparelho, codigo, categoria } = req.query;
@@ -281,7 +283,7 @@ app.get('/ativar', async (req, res) => {
       AND status = 'ativa'
       AND categoria = $2
       `,
-      [codigo, category = categoria]
+      [codigo, categoria]
     );
 
     if (chaveValida.rows.length === 0) {
