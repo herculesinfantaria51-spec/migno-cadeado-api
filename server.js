@@ -19,52 +19,7 @@ app.use(cors());
 // ==========================================================================
 // 4. WEBHOOK DA STRIPE (Processamento e criação de chaves automáticas)
 // ==========================================================================
-app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  let event;
 
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    console.error(` Erro de assinatura do Webhook: ${err.message}`);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    const categoriaApp = session.metadata && session.metadata.categoria ? session.metadata.categoria : 'indefinida';
-
-    let codigoChave = "";
-    let inseridoComSucesso = false;
-    let tentativas = 0;
-
-    while (!inseridoComSucesso && tentativas < 3) {
-      codigoChave = "MIGNO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-      tentativas++;
-
-      try {
-        // Mapeamento idêntico à tabela chaves: codigo, status, categoria
-        await pool.query(
-          `
-          INSERT INTO chaves (codigo, status, categoria)
-          VALUES ($1, $2, $3)
-          `,
-          [codigoChave, 'ativa', categoriaApp]
-        );
-        inseridoComSucesso = true;
-        console.log(`🚀 Chave automática criada com sucesso no PostgreSQL para [${categoriaApp}]: ${codigoChave}`);
-      } catch (err) {
-        console.error(`Tentativa ${tentativas} falhou ao inserir chave. Gerando outro...`);
-        if (tentativas >= 3) {
-          console.error("Erro crítico: Falha ao gerar chave única após 3 tentativas.", err);
-          return res.status(500).send("Erro ao gerar chave única");
-        }
-      }
-    }
-  }
-
-  res.json({ received: true });
-});
 
 // ==========================================================================
 // ROTA DA PÁGINA DE SUCESSO (Entrega da Chave pós-venda)
