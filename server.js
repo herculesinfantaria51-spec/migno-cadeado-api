@@ -1,5 +1,5 @@
 // Server Migno - Sincronizado estritamente com as tabelas do pgAdmin
-// Atualizado em: 04/07/ 14:31
+// Atualizado em: 04/07/2026 17:00
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -43,7 +43,7 @@ app.post('/webhook-stripe', express.raw({ type: 'application/json' }), async (re
       tentativas++;
 
       try {
-        // Confirmado: colunas batem 100% com a imagem_ada22f.jpg
+        // Mapeamento idêntico à tabela chaves: codigo, status, categoria
         await pool.query(
           `
           INSERT INTO chaves (codigo, status, categoria)
@@ -77,19 +77,17 @@ app.get('/sucesso', async (req, res) => {
   }
 
   try {
-    // Confirmado: Não usa a coluna ID. Ordenação por codigo resolvida!
-   
-   // ====== TRECHO CORRIGIDO ======
-const resultado = await pool.query(
-  `
-  SELECT codigo 
-  FROM chaves 
-  WHERE categoria = $1 AND status = 'ativa' 
-  ORDER BY codigo DESC 
-  LIMIT 1
-  `,
-  [categoria]
-);
+    // Sincronizado: Ordenação limpa por codigo decrescente (Sem usar coluna ID)
+    const resultado = await pool.query(
+      `
+      SELECT codigo 
+      FROM chaves 
+      WHERE categoria = $1 AND status = 'ativa' 
+      ORDER BY codigo DESC 
+      LIMIT 1
+      `,
+      [categoria]
+    );
 
     if (resultado.rows.length === 0) {
       return res.send(`
@@ -172,7 +170,7 @@ app.get('/estrutura-usuarios', async (req, res) => {
 });
 
 // ==========================================================================
-// 1. VERIFICAR (Validado com as colunas da imagem_ada301.jpg)
+// 1. VERIFICAR (Mapeamento estrito com a tabela usuarios)
 // ==========================================================================
 app.get('/verificar', async (req, res) => {
   const { uuid_aparelho, categoria } = req.query;
@@ -210,20 +208,21 @@ app.get('/verificar', async (req, res) => {
   } catch (err) {
     console.error("Erro verificar:", err);
     return res.status(500).json({
-      status: "erro3"
+      status: "erro3",
+      detalhe: err.message
     });
   }
 });
 
 // ==========================================================================
-// 2. REGISTRAR (Validado com as colunas da imagem_ada301.jpg)
+// 2. REGISTRAR (Mapeamento estrito com a tabela usuarios - Correção de Status)
 // ==========================================================================
 app.get('/registrar', async (req, res) => {
   const { uuid_aparelho, categoria } = req.query;
 
   if (!uuid_aparelho || !categoria) {
     return res.status(400).json({
-      status: "erro4",
+      status: "erro4", // Corrigido padronização de erro interno de parâmetro
       mensagem: "UUID or Category missing"
     });
   }
@@ -241,8 +240,7 @@ app.get('/registrar', async (req, res) => {
     if (existe.rows.length === 0) {
       await pool.query(
         `
-        INSERT INTO usuarios
-        (uuid_aparelho, categoria, status)
+        INSERT INTO usuarios (uuid_aparelho, categoria, status)
         VALUES ($1, $2, $3)
         `,
         [uuid_aparelho, categoria, 'pendente']
@@ -263,7 +261,7 @@ app.get('/registrar', async (req, res) => {
 });
 
 // ==========================================================================
-// 3. ATIVAR (Validado cruzando chaves e usuarios simultaneamente)
+// 3. ATIVAR (Validação cruzada limpa entre as tabelas do pgAdmin)
 // ==========================================================================
 app.get('/ativar', async (req, res) => {
   const { uuid_aparelho, codigo, categoria } = req.query;
@@ -301,7 +299,8 @@ app.get('/ativar', async (req, res) => {
       [uuid_aparelho, categoria]
     );
 
-    await pool.query(`
+    await pool.query(
+      `
       UPDATE chaves
       SET status='usada'
       WHERE codigo=$1
