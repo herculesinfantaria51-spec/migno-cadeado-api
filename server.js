@@ -8,7 +8,10 @@ const port = process.env.PORT || 3000;
 
 // Conexão direta e pura com o banco
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 app.use(cors());
