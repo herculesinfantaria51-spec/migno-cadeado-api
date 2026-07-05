@@ -1,83 +1,96 @@
+// Server Migno - Versão Original Limpa (Sucesso Absoluto)
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 
 const app = express();
+const port = process.env.PORT || 3000;
+
+// Conexão direta e pura com o banco
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL
+});
+
 app.use(cors());
 app.use(express.json());
 
-// CONFIGURAÇÃO DO POOL: Conecta diretamente ao banco de dados usando a variável de ambiente do Render
-// Isso evita o erro ECONNREFUSED ao parar de forçar o localhost (127.0.0.1)
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Obrigatório para conexões externas seguras no Render
+// ==========================================================================
+// 1. VERIFICAR
+// ==========================================================================
+app.get('/verificar', async (req, res) => {
+  const { uuid_aparelho, categoria } = req.query;
+
+  try {
+    const result = await pool.query(
+      'SELECT status FROM usuarios WHERE uuid_aparelho = $1 AND categoria = $2',
+      [uuid_aparelho, categoria]
+    );
+
+    if (result.rows.length > 0 && result.rows[0].status === 'autorizado') {
+      return res.json({ status: "authorized" });
+    }
+    return res.json({ status: "erro2" });
+  } catch (err) {
+    return res.status(500).json({ status: "erro" });
   }
 });
 
-// 1. ROTA DE USUÁRIOS: Teste bem-sucedido de Registro de Aparelho
+// ==========================================================================
+// 2. REGISTRAR
+// ==========================================================================
 app.get('/registrar', async (req, res) => {
   const { uuid_aparelho, categoria } = req.query;
 
-  if (!uuid_aparelho || !categoria) {
-    return res.status(400).json({ status: "erro", detalhe: "Parâmetros ausentes." });
-  }
-
   try {
-    // Insere ou atualiza o dispositivo na tabela de usuários (A categoria mapeia o nome do alvo da lista)
-    const queryTexto = `
-      INSERT INTO usuarios (uuid_aparelho, categoria, data_registro)
-      VALUES ($1, $2, NOW())
-      ON CONFLICT (uuid_aparelho) 
-      DO UPDATE SET categoria = $2, data_registro = NOW()
-      RETURNING *;
-    `;
-    
-    await pool.query(queryTexto, [uuid_aparelho, categoria]);
+    const existe = await pool.query(
+      'SELECT * FROM usuarios WHERE uuid_aparelho = $1 AND categoria = $2',
+      [uuid_aparelho, categoria]
+    );
 
-    // Resposta de Sucesso que valida o teste do usuário
-    return res.status(200).json({ status: "sucesso", detalhe: "Dispositivo registrado com sucesso na tabela de usuários." });
-
-  } catch (error) {
-    console.error("Erro no servidor:", error);
-    // Retorna a estrutura que capturamos no console para tratamento de erros
-    return res.status(500).json({ status: "erro5", detalhe: error.message });
+    if (existe.rows.length === 0) {
+      await pool.query(
+        'INSERT INTO usuarios (uuid_aparelho, categoria, status) VALUES ($1, $2, $3)',
+        [uuid_aparelho, categoria, 'pendente']
+      );
+    }
+    return res.json({ status: "pendente", mensagem: "Awaiting authorization" });
+  } catch (err) {
+    return res.status(500).json({ status: "erro4" });
   }
 });
 
-// 2. ROTA DE CHAVES: Teste bem-sucedido de Ativação/Licença (Venda Direta na Loja)
+// ==========================================================================
+// 3. ATIVAR
+// ==========================================================================
 app.get('/ativar', async (req, res) => {
-  const { uuid_aparelho, chave_licenca } = req.query;
-
-  if (!uuid_aparelho || !chave_licenca) {
-    return res.status(400).json({ status: "erro", detalhe: "Parâmetros ausentes." });
-  }
+  const { uuid_aparelho, codigo, categoria } = req.query;
 
   try {
-    // Verifica e atualiza o status na tabela de chaves para autorizar o dispositivo
-    const queryChave = `
-      UPDATE chaves 
-      SET uuid_aparelho = $1, status = 'ativado', data_ativacao = NOW() 
-      WHERE chave_licenca = $2 AND (uuid_aparelho IS NULL OR uuid_aparelho = $1)
-      RETURNING *;
-    `;
-    
-    const resultado = await pool.query(queryChave, [uuid_aparelho, chave_licenca]);
+    const chaveValida = await pool.query(
+      "SELECT * FROM chaves WHERE codigo = $1 AND status = 'ativa' AND categoria = $2",
+      [codigo, categoria]
+    );
 
-    if (resultado.rows.length === 0) {
-      return res.status(404).json({ status: "erro", detalhe: "Chave inválida ou já utilizada por outro aparelho." });
+    if (chaveValida.rows.length === 0) {
+      return res.json({ status: "erro" });
     }
 
-    return res.status(200).json({ status: "sucesso", detalhe: "Chave ativada com sucesso para o usuário." });
+    await pool.query(
+      "UPDATE usuarios SET status = 'autorizado' WHERE uuid_aparelho = $1 AND categoria = $2",
+      [uuid_aparelho, categoria]
+    );
 
-  } catch (error) {
-    console.error("Erro na ativação:", error);
-    return res.status(500).json({ status: "erro5", detalhe: error.message });
+    await pool.query(
+      "UPDATE chaves SET status = 'usada' WHERE codigo = $1",
+      [codigo]
+    );
+
+    return res.json({ status: "sucesso" });
+  } catch (err) {
+    return res.status(500).json({ status: "erro6" });
   }
 });
 
-// Inicialização do Servidor
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Servidor rodando com sucesso na porta ${PORT}`);
+app.listen(port, () => {
+  console.log(`Servidor rodando perfeitamente na porta ${port}`);
 });
