@@ -1,5 +1,5 @@
 // Server Migno - Sincronizado estritamente com as tabelas do pgAdmin
-// Atualizado em: 04/07/2026 17:00
+// Atualizado em: 05/07/2026
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -7,6 +7,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const port = process.env.PORT || 3000;
+
 // Conexão inteligente adaptada às variáveis da Render
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -18,12 +19,9 @@ const pool = new Pool({
     rejectUnauthorized: false
   }
 });
+
 app.use(cors());
-
-// ==========================================================================
-// 4. WEBHOOK DA STRIPE (Processamento e criação de chaves automáticas)
-// ==========================================================================
-
+app.use(express.json());
 
 // ==========================================================================
 // ROTA DA PÁGINA DE SUCESSO (Entrega da Chave pós-venda)
@@ -36,7 +34,6 @@ app.get('/sucesso', async (req, res) => {
   }
 
   try {
-    // Sincronizado: Ordenação limpa por codigo decrescente (Sem usar coluna ID)
     const resultado = await pool.query(
       `
       SELECT codigo 
@@ -114,7 +111,7 @@ app.get('/sucesso', async (req, res) => {
 });
 
 // ==========================================================================
-// ROTA DE DIAGNÓSTICO (Bate direto na tabela chaves para checar o status)
+// ROTA DE DIAGNÓSTICO
 // ==========================================================================
 app.get('/estrutura-usuarios', async (req, res) => {
   try {
@@ -129,7 +126,7 @@ app.get('/estrutura-usuarios', async (req, res) => {
 });
 
 // ==========================================================================
-// 1. VERIFICAR (Mapeamento estrito com a tabela usuarios)
+// 1. VERIFICAR
 // ==========================================================================
 app.get('/verificar', async (req, res) => {
   const { uuid_aparelho, categoria } = req.query;
@@ -151,10 +148,7 @@ app.get('/verificar', async (req, res) => {
       [uuid_aparelho, categoria]
     );
 
-    if (
-      result.rows.length > 0 &&
-      result.rows[0].status === 'autorizado'
-    ) {
+    if (result.rows.length > 0 && result.rows[0].status === 'autorizado') {
       return res.json({
         status: "authorized"
       });
@@ -174,14 +168,14 @@ app.get('/verificar', async (req, res) => {
 });
 
 // ==========================================================================
-// 2. REGISTRAR (Mapeamento estrito com a tabela usuarios - Correção de Status)
+// 2. REGISTRAR
 // ==========================================================================
 app.get('/registrar', async (req, res) => {
   const { uuid_aparelho, categoria } = req.query;
 
   if (!uuid_aparelho || !categoria) {
     return res.status(400).json({
-      status: "erro4", // Corrigido padronização de erro interno de parâmetro
+      status: "erro4",
       mensagem: "UUID or Category missing"
     });
   }
@@ -221,7 +215,7 @@ app.get('/registrar', async (req, res) => {
 });
 
 // ==========================================================================
-// 3. ATIVAR (Validação cruzada limpa entre as tabelas do pgAdmin)
+// 3. ATIVAR
 // ==========================================================================
 app.get('/ativar', async (req, res) => {
   const { uuid_aparelho, codigo, categoria } = req.query;
@@ -244,25 +238,12 @@ app.get('/ativar', async (req, res) => {
       [codigo, categoria]
     );
 
-  try {
-    const chaveValida = await pool.query(
-      `
-      SELECT *
-      FROM chaves
-      WHERE codigo = $1
-      AND status = 'ativa'
-      AND categoria = $2
-      `,
-      [codigo, categoria]
-    );
-
     if (chaveValida.rows.length === 0) {
       return res.json({
         status: "erro7"
       });
     }
 
-    // Abre a transação para evitar quebra de conexão do pool no Neon
     await pool.query('BEGIN');
 
     await pool.query(
@@ -290,22 +271,14 @@ app.get('/ativar', async (req, res) => {
     });
 
   } catch (err) {
-    // Se falhar no meio dos updates, desfaz as alterações para não corromper o banco
     await pool.query('ROLLBACK').catch(() => {});
-    console.error("Erro activar:", err);
+    console.error("Erro ativar:", err);
     return res.status(500).json({
-      status: "erro8"
-    });
-  }
-
-  } catch (err) {
-    console.error("Erro activar:", err);
-    res.status(500).json({
       status: "erro8"
     });
   }
 });
 
 app.listen(port, () => {
-  console.log(`Servidor rodando na porta ${port}`);
+  console.log(`Servidor rodando perfeitamente na porta ${port}`);
 });
