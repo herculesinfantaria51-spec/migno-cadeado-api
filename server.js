@@ -1,5 +1,5 @@
 // Server Migno - Sincronizado estritamente com as tabelas do pgAdmin
-Atualizado em: 06/07/2026 2316h
+ // Atualizado em: 06/07/2026 2316h
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
