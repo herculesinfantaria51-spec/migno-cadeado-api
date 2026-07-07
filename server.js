@@ -145,8 +145,7 @@ app.get('/sucesso', async (req, res) => {
           function copiarChave() {
             const texto = document.getElementById('codigoChave').innerText;
             navigator.clipboard.writeText(texto).then(() => {
-              alert('Key copied successfully! THE APP WITH YOUR ACTIVATION KEY 
-              AND PASTE IT INTO THE DESIGNATED FIELD..');
+              alert('Key copied successfully! OPEN THE APP WITH YOUR ACTIVATION KEY AND PASTE IT INTO THE DESIGNATED FIELD.');
             }).catch(err => {
               alert('Failed to copy automatically. Please copy the text manually.');
             });
@@ -161,7 +160,6 @@ app.get('/sucesso', async (req, res) => {
     res.status(500).send("Internal error while retrieving your license.");
   }
 });
-
 // ==========================================================================
 // ROTA DE DIAGNÓSTICO
 // ==========================================================================
